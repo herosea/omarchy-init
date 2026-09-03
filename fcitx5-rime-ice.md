@@ -1,6 +1,6 @@
 # Fcitx5 + 雾凇拼音
 
-本文记录在 Omarchy 上安装和配置 Fcitx5、Rime 与雾凇拼音（Rime Ice，全拼），并使用 `Ctrl + Space` 全局切换中英文输入。
+本文记录在 Omarchy 上安装和配置 Fcitx5、Rime 与雾凇拼音（Rime Ice，全拼）。Fcitx5 启动后默认使用英文键盘，需要中文时使用 `Ctrl + Space` 全局切换。
 
 ## 安装依赖
 
@@ -71,7 +71,7 @@ AltTriggerKeys=
 ModifierOnlyKeyTimeout=500
 
 [Behavior]
-ActiveByDefault=True
+ActiveByDefault=False
 ShareInputState=All
 ```
 
@@ -140,6 +140,7 @@ fcitx5-remote -m rime
 预期结果：
 
 - 服务状态为 `active`；
+- Fcitx5 启动后默认处于英文状态，`fcitx5-remote` 输出 `1`；
 - 中文状态下 `fcitx5-remote` 输出 `2`；
 - 当前输入法为 `rime`；
 - `fcitx5-remote -m rime` 输出 `rime`；
