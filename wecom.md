@@ -1,153 +1,165 @@
 # 企业微信
 
-本文记录在 Omarchy（Arch Linux + Hyprland/Wayland）上安装企业微信的调研和实测结果。
+本文记录在 Omarchy（Arch Linux + Hyprland/Wayland）上安装企业微信的复现步骤，以及本机实测中失败的方案。
 
-截至 2026 年 9 月，企业微信没有面向普通 Linux 桌面的官方原生客户端。Arch Linux 上现有方案主要通过 Deepin Wine 运行 Windows 版企业微信，兼容性取决于企业微信版本、Wine 版本和随应用提供的 DLL，不能仅凭“可以启动”判断是否可用。
+截至 2026 年 9 月，企业微信没有面向普通 Linux 桌面的官方原生客户端。可用方案是用 Deepin Wine 运行 Windows 版。
 
-## 推荐结论
-
-暂不安装 AUR 当前提供的 `5.0.0.6008~spark2-2`。
-
-该版本在本机可以启动并生成登录二维码，但 CEF/WebView 将二维码绘制为深灰色码和黑色背景，无法正常扫码。强制 Wine 使用浅色主题后问题仍然存在；登录后的工作台、微盘、微文档和第三方应用也依赖相同的 WebView，因此不适合作为日常办公客户端。
-
-更值得尝试的旧版组合是：
+## 当前可用组合
 
 ```text
-企业微信：4.1.32.6005
-Wine：deepin-wine8-stable
-DLL：保留 4.1.32.6005 软件包随附的 DLL
+AUR 适配层：com.qq.weixin.work.deepin 5.0.0.6008~spark2-2
+企业微信：腾讯官网 Windows 版 5.0.10.6015
+Wine：deepin-wine10-stable 10.14deepin11-1
+运行助手：spark-dwine-helper 5.8_5.3.14-1
+缩放依赖：xorg-xdpyinfo
+容器：~/.deepinwine/Deepin-WXWork
+启动：~/.local/bin/wecom-deepin
+桌面入口：~/.local/share/applications/com.qq.weixin.work.deepin.desktop
 ```
 
-目前星火镜像已经删除这个旧版，统信官方仓库对应地址只返回零字节占位文件，Internet Archive 也没有安装包存档。在取得来源可信、哈希可验证的旧版 `.deb` 之前，不要从不明软件下载站安装。
+实测可用：登录、主界面、2 倍缩放、中文、聊天、**截图 Ctrl+V 粘贴**。
 
-历史包名为：
+已知限制：
 
-```text
-com.qq.weixin.work.deepin_4.1.32.6005deepin11~spark1_all.deb
-```
+- 邮件、微文档依赖内置 CEF，窗口经常是 0×0 或空白。
+- 工作台投屏（Miracast）远程只有鼠标，画面是黑的。Wine 抓不到 Hyprland 桌面。
+- 启动后 CEF 的 `WXWorkWeb.exe --type=crashpad-handler` 会空转占 CPU。启动器会定期杀掉该进程，不影响聊天和粘贴。
 
-## AUR 软件包说明
+粘贴快捷键是 Wine 的 **Ctrl+V**，不是 Super+V。
 
-当前主要软件包：
-
-```text
-com.qq.weixin.work.deepin
-```
-
-安装入口为：
+## 安装
 
 ```bash
 omarchy pkg aur add com.qq.weixin.work.deepin
+omarchy pkg add xorg-xdpyinfo
 ```
 
-另一个 AUR 包 `com.qq.weixin.work.deepin.gitee` 不是更稳定的企业微信版本。它同样封装 `5.0.0.6008~spark2-2`，企业微信主程序仍来自山东大学星火镜像；“gitee”主要指部分附加资源改从 Gitee 下载，不能解决 WebView 问题。
+AUR 会拉 `deepin-wine10-stable` 和 `spark-dwine-helper`。不要安装 `com.qq.weixin.work.deepin-debug`，它会和 `deepin-wine10-stable-debug` 文件冲突。
 
-## 5.0 版实测记录
+### 容器解压
 
-本机曾安装以下版本进行验证，验证完成后已全部卸载和清理：
-
-```text
-com.qq.weixin.work.deepin 5.0.0.6008~spark2-2
-deepin-wine10-stable 10.14deepin11-1
-spark-dwine-helper 5.8_5.3.14-1
-```
-
-### 调试包文件冲突
-
-AUR 构建会同时生成主程序包和调试包：
-
-```text
-com.qq.weixin.work.deepin
-com.qq.weixin.work.deepin-debug
-```
-
-`com.qq.weixin.work.deepin-debug` 与 `deepin-wine10-stable-debug` 包含相同 build-id 的调试文件，安装时会报文件冲突。调试包不是程序运行依赖，不要使用 `--overwrite` 覆盖文件；若只是测试主程序，可以只安装主包：
-
-```bash
-sudo pacman -U --needed \
-  ~/.cache/yay/com.qq.weixin.work.deepin/com.qq.weixin.work.deepin-5.0.0.6008~spark2-2-x86_64.pkg.tar.zst
-```
-
-### Wine 容器解压失败
-
-当前包中的 `files.7z` 实际 MD5 与 `files.md5sum` 不一致。首次启动还可能因新版 7-Zip 的解包行为而无法创建：
+包内 `files.7z` 的 MD5 与 `files.md5sum` 不一致。新版 7-Zip 还可能拒绝 Wine 的“危险链接”。本机用 `bsdtar` 解包后才能生成：
 
 ```text
 ~/.deepinwine/Deepin-WXWork/
 ```
 
-本机使用 `bsdtar` 手动解包后可以完成容器初始化，但这只能解决启动问题，不能修复 CEF/WebView。
+### 升级到官网 5.0.10
 
-### 缺少缩放检测依赖
-
-`spark-dwine-helper` 的首次启动脚本调用 `xdpyinfo`，但 AUR 依赖未覆盖该命令。缺少时日志会显示：
+AUR 封装的 `5.0.0.6008` 会被腾讯服务端拒绝。下载：
 
 ```text
-get-scale.sh: xdpyinfo: command not found
+https://dldir1.qq.com/wework/work_weixin/WeCom_5.0.10.6015.exe
+SHA-256: d46b1cc2603c70ff9cccd85998eed0c0d61f11a3a68e050b0695111294c10c87
 ```
 
-对应 Arch 软件包为：
+本机副本：`/home/herosea/Projects/debs/WeCom_5.0.10.6015.exe`
+
+企业微信完全退出后：
 
 ```bash
-omarchy pkg add xorg-xdpyinfo
+export WINEPREFIX="$HOME/.deepinwine/Deepin-WXWork"
+/opt/deepin-wine10-stable/bin/wineserver -k
+deepin-wine10-stable /home/herosea/Projects/debs/WeCom_5.0.10.6015.exe /S
 ```
 
-### Deepin 托盘错误
+确认版本：
 
-启动脚本会访问 Deepin 桌面的 D-Bus 服务：
-
-```text
-com.deepin.dde.TrayManager
+```bash
+7z l "$WINEPREFIX/drive_c/Program Files (x86)/WXWork/WXWork.exe" \
+  | grep -E 'FileVersion|ProductVersion'
 ```
 
-Omarchy 不提供该服务，因此会出现 `org.freedesktop.DBus.Error.ServiceUnknown`。本机实测该错误会产生大量告警，但不是二维码显示异常的直接原因。
+重置容器会回到 AUR 旧版，必须再跑一次官网安装程序。
 
-### WebView 故障
+### 缩放 2 倍
 
-本机最终状态为：
+```bash
+APPRUN_CMD=deepin-wine10-stable \
+  /opt/spark-dwine-helper/spark-dwine-helper/scale-set-helper/set-wine-scale.sh \
+  --set-scale-factor 2.0 "$HOME/.deepinwine/Deepin-WXWork"
+```
 
-- `WXWork.exe` 进程持续运行；
-- Hyprland 能识别并映射 `WeCom` 窗口；
-- 登录二维码已经生成；
-- 二维码和背景均接近黑色，无法正常扫码；
-- 设置 `AppsUseLightTheme=1` 和 `SystemUsesLightTheme=1` 后无改善。
+会写入 `scale.txt=2.0` 和 `LogPixels=192`。完全退出再启动后生效。
 
-这说明故障位于该版本的 CEF/DLL/Wine 绘制兼容层，而非网络、普通深色主题或窗口未启动。
+### Hyprland 黑色界面
 
-## 安装前检查
+二维码或主界面发黑，是 XWayland 合成问题，不是 CEF 坏了。在 `~/.config/hypr/hyprland.lua`：
 
-如果以后重新取得 `4.1.32.6005` 安装包，应先完成以下检查：
+```lua
+o.window({
+  class = "^com\\.qq\\.weixin\\.work\\.deepin$",
+  title = "^企业微信$",
+}, {
+  tag = "-default-opacity",
+  opacity = "1 1",
+  opaque = true,
+})
 
-1. 确认来源是腾讯、Deepin、统信或星火的历史官方文件，而不是软件下载站重新封装的文件。
-2. 对照 AUR 历史提交中的 SHA-256 校验值验证文件。
-3. 解包检查 `files.7z`、`files.md5sum`、`files/dlls/` 和启动脚本是否完整。
-4. 在不覆盖现有文件的情况下构建独立 Arch 软件包。
-5. 依次测试登录二维码、中文输入、聊天、文件传输、工作台、微盘、微文档和第三方 WebView 应用。
-6. 验证通过后再考虑锁定版本，避免被 AUR 自动升级到不兼容的 5.0 包。
+o.window({
+  class = "^com\\.qq\\.weixin\\.work\\.deepin$",
+  title = "^$",
+  xwayland = true,
+  float = true,
+}, {
+  opacity = "0 0",
+  no_focus = true,
+  no_shadow = true,
+})
+```
 
-## 卸载与还原
+```bash
+hyprctl reload
+hyprctl configerrors
+```
 
-卸载主程序：
+两条都要：只设不透明，无标题阴影会变成黑蒙层；只藏阴影，主窗口仍可能过暗。
+
+### 启动器与菜单
+
+`~/.local/bin/wecom-deepin` 调用 Deepin 官方 `run.sh`，并在运行期间杀掉空转的 crashpad-handler。
+
+桌面入口 `Name=企业微信`，`Categories=Network;InstantMessaging;`，`StartupWMClass=com.qq.weixin.work.deepin`。不要用 `Categories=chat;`，Omarchy 菜单可能列不出来。
+
+启动：
+
+```bash
+wecom-deepin
+```
+
+或在菜单搜「企业微信」。
+
+## 失败尝试
+
+| 方案 | 结果 |
+| --- | --- |
+| AUR 自带 `5.0.0.6008`，不升级 | 服务端拒绝，版本过低 |
+| `4.1.32.6005` + deepin-wine8 | 服务端拒绝；迁完整登录容器也不行 |
+| 从 `172.16.70.108` 拷 wine8 运行时和容器 | `wow64.dll` 等符号链接指向缺失的 `/opt/apps/...`；5.0.10 安装失败 |
+| Arch `wine-staging 11.16` 新容器 + 官网 5.0.10 | 能登录、聊天、2 倍缩放；**截图无法粘贴**；邮件/文档 CEF `CreateWindowEx` 错误 1400；WeMail 常为 0×0 |
+| Wine 虚拟桌面 | 多出一个空白「Wine 桌面」；CEF 父窗口错误仍在 |
+| Wine Wayland 驱动 | WeMail 能显示但内容空白，并盖住主界面 |
+| Wayland→X11 剪贴板桥、Wine 内 `OleSetClipboard`/`CF_DIB`/`CF_HDROP` | Staging 下聊天仍贴不上图 |
+| 工作台 Miracast 投屏 | 远程只有鼠标，画面黑。Wine 只能抓到黑的 XWayland 根窗口 |
+
+`wine-staging` 与上述测试容器、剪贴板桥已从本机删除，只保留 Deepin Wine 这一套。
+
+## 其他注意
+
+- `spark-dwine-helper` 会调 `xdpyinfo`，缺了要装 `xorg-xdpyinfo`。
+- 启动脚本访问 `com.deepin.dde.TrayManager`，Omarchy 没有该服务，日志会有 D-Bus 错误，可忽略。
+- 另一个 AUR 包 `com.qq.weixin.work.deepin.gitee` 仍是 `5.0.0.6008`，不能当替代版。
+
+## 卸载
 
 ```bash
 omarchy pkg drop com.qq.weixin.work.deepin
 ```
 
-确认不再需要其中的数据后，删除 Wine 容器：
+确认不要数据后再删：
 
 ```text
 ~/.deepinwine/Deepin-WXWork/
 ```
 
-不要直接清空整个 `~/.deepinwine/`，其中可能包含其他 Deepin Wine 应用的数据。
-
-若安装过程中生成了 AUR 构建缓存，可按具体包名清理：
-
-```text
-~/.cache/yay/com.qq.weixin.work.deepin/
-~/.cache/yay/deepin-wine8-stable/
-~/.cache/yay/deepin-wine10-stable/
-~/.cache/yay/spark-dwine-helper/
-```
-
-删除依赖前应先用 `pacman -Qi <包名>` 检查 `Required By`，不要使用宽泛的递归删除命令，以免移除其他软件正在使用的组件。
+不要清空整个 `~/.deepinwine/`。删依赖前用 `pacman -Qi <包名>` 看 `Required By`。
