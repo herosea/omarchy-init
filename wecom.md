@@ -19,6 +19,8 @@ Wine：deepin-wine10-stable 10.14deepin11-1
 
 实测可用：登录、主界面、2 倍缩放、中文、聊天、**截图 Ctrl+V 粘贴**。
 
+中文候选窗口过小是 Fcitx5 在 HiDPI XWayland 上按 96 DPI 绘制导致的，不是 Wine 缩放问题。适配见 `fcitx5-hidpi.md`。
+
 已知限制：
 
 - 邮件、微文档依赖内置 CEF，窗口经常是 0×0 或空白。

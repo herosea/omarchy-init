@@ -152,6 +152,8 @@ fcitx5-remote -m rime
 
 目前统一使用已验证可用的 `Ctrl + Space` 全局快捷键；不要依赖左 `Shift` 切换。后续查明 Wayland 修饰键释放事件的兼容性问题后再更新此配置。
 
+企业微信、飞书等 XWayland 应用里候选窗口过小，已按 `fcitx5-hidpi.md` 适配。
+
 ## 备份
 
 本次配置过程中创建了以下备份：
